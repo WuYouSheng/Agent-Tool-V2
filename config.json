@@ -1,0 +1,6 @@
+{
+    "interface": "en0",
+    "port": 5006,
+    "service_type": "Monitored",
+    "time_gap": 5
+}
