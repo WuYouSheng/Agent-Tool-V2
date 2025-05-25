@@ -1,0 +1,13 @@
+{
+  "interface": "en0",
+  "port": 5006,
+  "service_type": "Monitored",
+  "time_gap": 1,
+  "signal_target_ip": "10.52.52.100",
+  "signal_target_port": 9999,
+  "embed_target_ip": "10.52.52.100",
+  "embed_target_port": 9999,
+  "max_packet_size": 1000,
+  "description": "\u88ab\u76e3\u63a7\u7aef\u914d\u7f6e - \u76e3\u63a7\u672c\u6a5f\u6d41\u91cf\u4e26\u767c\u9001\u7d66\u76e3\u63a7\u7aef",
+  "version": "1.0"
+}

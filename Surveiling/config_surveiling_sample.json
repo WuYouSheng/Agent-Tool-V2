@@ -1,0 +1,32 @@
+{
+  "service_type": "surveiling",
+  "signal_listen_port": 9999,
+  "embed_listen_port": 9999,
+  "time_gen_gap": 5,
+  "pcap_input_directory": "PCAP",
+  "pcap_output_directory": "PCAP",
+  "json_output_directory": "JSON",
+  "description": "監控端配置 - 支援定時PCAP匯出和JSON轉換",
+  "features": {
+    "auto_pcap_export": true,
+    "auto_json_conversion": true,
+    "export_interval_seconds": 5,
+    "json_conversion_interval_seconds": 5,
+    "export_both_received_and_restored": true
+  },
+  "advanced_settings": {
+    "fragment_timeout": 30,
+    "max_temp_packets": 1000,
+    "enable_integrity_check": true,
+    "json_conversion_modes": ["embedded_analysis", "restored_analysis"],
+    "debug_mode": false,
+    "auto_cleanup_old_files": false,
+    "max_file_age_hours": 24
+  },
+  "directory_structure": {
+    "comment": "建議的目錄結構",
+    "pcap_dir": "PCAP/",
+    "json_dir": "JSON/",
+    "logs_dir": "LOGS/"
+  }
+}
