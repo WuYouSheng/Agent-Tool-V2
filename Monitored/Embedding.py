@@ -6,16 +6,16 @@ import hashlib
 from datetime import datetime
 from scapy.all import *
 
-
 class PacketEmbedder:
-    def __init__(self, max_packet_size=1400):
+    def __init__(self, max_packet_size=1400, current_uuid=uuid.uuid4()):
         self.processed_packets = []
         self.max_packet_size = max_packet_size
+        self.current_uuid = current_uuid
 
     def create_metadata(self):
         """建立新的UUID和時間戳記元資料"""
         metadata = {
-            "embed_uuid": str(uuid.uuid4()),
+            "embed_uuid": self.current_uuid, #同一個服務使用同一組UUID
             "embed_timestamp": datetime.now().isoformat(),
             "process_time": time.time()
         }
@@ -157,7 +157,7 @@ class PacketEmbedder:
     def embed_packet(self, original_packet, destination_ip, destination_port):
         """將原始封包重新包裝到新的封包中，支援分片"""
         try:
-            # 建立元資料
+            # 建立metadata
             metadata = self.create_metadata()
             fragment_uuid = str(uuid.uuid4())
 
@@ -327,9 +327,9 @@ class PacketEmbedder:
 
 
 # 向後相容的外部調用函數
-def embed_and_send_packet(original_packet, destination_ip, destination_port, max_packet_size=1400):
+def embed_and_send_packet(original_packet, destination_ip, destination_port, max_packet_size=1400, current_uuid=uuid.uuid4()):
     """嵌入並發送封包的便利函數"""
-    embedder = PacketEmbedder(max_packet_size)
+    embedder = PacketEmbedder(max_packet_size, current_uuid)
     embedded_packets = embedder.embed_packet(original_packet, destination_ip, destination_port)
 
     if embedded_packets:

@@ -5,6 +5,7 @@ import sys
 import json
 import time
 import signal
+import uuid
 from pathlib import Path
 
 # 導入自定義模組
@@ -23,6 +24,7 @@ class MonitoredProcessor:
         self.is_running = False
         self.processed_count = 0
         self.signal_sent = False  # 記錄是否已發送signal
+        self.current_uuid = uuid.uuid4() #服務專用UUID
 
         # 設定信號處理
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -153,8 +155,9 @@ class MonitoredProcessor:
         try:
             target_ip = self.config["signal_target_ip"]
             target_port = self.config["signal_target_port"]
+            current_uuid = self.current_uuid
 
-            success = send_signal(target_ip, target_port)
+            success = send_signal(target_ip, target_port, current_uuid)
 
             if success:
                 print(f"   ✅ 信號封包已發送至監控端 {target_ip}:{target_port}")
@@ -182,7 +185,7 @@ class MonitoredProcessor:
             target_port = self.config["embed_target_port"]
             max_size = self.config.get("max_packet_size", 1400)
 
-            success = embed_and_send_packet(scapy_packet, target_ip, target_port, max_size)
+            success = embed_and_send_packet(scapy_packet, target_ip, target_port, max_size, uuid)
 
             if success:
                 print(f"   ✅ 封包已嵌入並轉發至監控端 {target_ip}:{target_port}")
@@ -289,6 +292,8 @@ def main():
 
     # 建立處理器實例
     processor = MonitoredProcessor()
+
+
 
     try:
         # 啟動處理系統
