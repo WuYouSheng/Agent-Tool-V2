@@ -13,11 +13,11 @@ class PacketEmbedder:
         self.current_uuid = current_uuid
 
     def create_metadata(self):
-        """建立新的UUID和時間戳記元資料"""
+        """建立新的UUID和時間戳Metadata"""
         metadata = {
             "embed_uuid": self.current_uuid, #同一個服務使用同一組UUID
-            "embed_timestamp": datetime.now().isoformat(),
-            "process_time": time.time()
+            "embed_timestamp": datetime.now().isoformat(), #記錄當前時間
+            "process_time": time.time() #紀錄處理時間
         }
         return metadata
 
@@ -30,6 +30,7 @@ class PacketEmbedder:
             # 處理其他有字串表示的物件
             return str(obj)
         elif isinstance(obj, (list, tuple)):
+            # tuple或是list走遞迴
             return [self._convert_to_json_serializable(item) for item in obj]
         elif isinstance(obj, dict):
             return {key: self._convert_to_json_serializable(value) for key, value in obj.items()}
@@ -40,13 +41,16 @@ class PacketEmbedder:
     def serialize_packet(self, packet):
         """將原始封包序列化為base64字串，保留更多資訊"""
         try:
-            # 將封包轉換為bytes
+            # print("TEST Packet content")
+            # print(packet)
+
+            # 將封包轉換為bytes，即二進制
             packet_bytes = bytes(packet)
 
             # 計算原始雜湊值用於驗證
             original_hash = hashlib.sha256(packet_bytes).hexdigest()
 
-            # 編碼為base64
+            # 編碼為base64並且使用utf-8格式
             packet_b64 = base64.b64encode(packet_bytes).decode('utf-8')
 
             # 記錄封包的詳細資訊
