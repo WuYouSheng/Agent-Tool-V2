@@ -59,30 +59,37 @@ class PacketEmbedder:
                 "length": len(packet_bytes),
                 "original_hash": original_hash,
                 "layers": [],
-                "has_ether": Ether in packet,
-                "has_ip": IP in packet,
-                "has_tcp": TCP in packet,
-                "summary": packet.summary()
+                "has_ether": Ether in packet, # Ethernet Layer
+                "has_ip": IP in packet, # IP Layer
+                "has_tcp": TCP in packet, # TCP Layer
+                "summary": packet.summary() #顯示封包基本結構
             }
 
             # 記錄封包層級結構
             current = packet
             while current:
-                layer_name = current.__class__.__name__
-                packet_info["layers"].append(layer_name)
-                if hasattr(current, 'payload') and current.payload:
+                layer_name = current.__class__.__name__  # 取得目前封包類別名稱
+                packet_info["layers"].append(layer_name) # 將解析到的封包類別名稱加入packet_info 的 layer欄位
+                if hasattr(current, 'payload') and current.payload: # Payload紀錄下一層的內容
                     current = current.payload
                 else:
                     break
 
-            # 如果有IP層，記錄詳細資訊 - 修復JSON序列化問題
+            print("Packet Layer Name: ")
+            print(packet_info["layers"])
+
+            # 如果有IP層，記錄詳細資訊
             if IP in packet:
+                # IP 基本資訊顯示
+                print("IP information")
+                print(packet[IP])
+
                 packet_info.update({
                     "original_src": str(packet[IP].src),
                     "original_dst": str(packet[IP].dst),
-                    "original_protocol": int(packet[IP].proto),  # 確保是int
-                    "ip_version": int(packet[IP].version),  # 確保是int
-                    "ip_ttl": int(packet[IP].ttl)  # 確保是int
+                    "original_protocol": int(packet[IP].proto),# 協定編號，6 表示TCP、17 表示UDP、1 表示ICMP
+                    "ip_version": int(packet[IP].version), # 4表示IPv4 6表示IPv6
+                    "ip_ttl": int(packet[IP].ttl) # TTL數值，表示最多能經過多少個路由器
                 })
             else:
                 packet_info.update({
@@ -91,19 +98,26 @@ class PacketEmbedder:
                     "original_protocol": "unknown"
                 })
 
-            # 如果有TCP層，記錄端口資訊 - 修復JSON序列化問題
+            # 如果有TCP層，記錄端口資訊
             if TCP in packet:
-                # 使用安全的轉換方法處理FlagValue
+                #TCP 基本資訊
+                print("TCP flags")
+                print(packet[TCP].flags)
+
+                # 處理FlagValue
                 tcp_flags = packet[TCP].flags
                 if hasattr(tcp_flags, '__int__'):
                     tcp_flags_value = int(tcp_flags)
                 else:
-                    tcp_flags_value = str(tcp_flags)
+                    tcp_flags_value = str(tcp_flags) #SYN 表示正在建立連線、ACK 表示風包確認收到、FIN表示關閉連線、SYN+ACK 表示伺服器回應連線請求
 
                 packet_info.update({
                     "tcp_sport": int(packet[TCP].sport),
                     "tcp_dport": int(packet[TCP].dport),
-                    "tcp_flags": tcp_flags_value  # 修復FlagValue序列化問題
+                    "tcp_flags": tcp_flags_value,
+                    "tcp_seq": int(packet[TCP].seq), # 序列號
+                    "tcp_ack": int(packet[TCP].ack), # 確認號
+                    "tcp_window": int(packet[TCP].window) # 接收大小
                 })
 
             print(f"📦 封包序列化:")
@@ -121,24 +135,25 @@ class PacketEmbedder:
             return None
 
     def fragment_large_payload(self, payload_json, fragment_uuid):
-        """將大型payload分片"""
-        payload_bytes = payload_json.encode('utf-8')
+        """將大型 payload 切割"""
+        payload_bytes = payload_json.encode('utf-8') # 將 payload json轉utf8格式
         payload_size = len(payload_bytes)
 
-        # 計算每個分片的最大payload大小
+        # 計算每個切割分片的最大payload大小
+        # 200為誤差值
         max_payload_per_fragment = self.max_packet_size - 200
 
-        if payload_size <= max_payload_per_fragment:
+        if payload_size <= max_payload_per_fragment: #小於最大 payload 分割大小
             return [payload_json]
 
-        # 需要分片
+        # 需要切割成多少個Partial
         fragments = []
         total_fragments = (payload_size + max_payload_per_fragment - 1) // max_payload_per_fragment
 
         for i in range(total_fragments):
-            start_idx = i * max_payload_per_fragment
-            end_idx = min(start_idx + max_payload_per_fragment, payload_size)
-            fragment_data = payload_bytes[start_idx:end_idx]
+            start_idx = i * max_payload_per_fragment #計算每個分片在原始資料中的起始索引，依據分片大小進行偏移
+            end_idx = min(start_idx + max_payload_per_fragment, payload_size) #確保不超過原始資料大小
+            fragment_data = payload_bytes[start_idx:end_idx] # 抓取payloads 資料
 
             fragment_info = {
                 "fragment_uuid": fragment_uuid,
@@ -328,7 +343,6 @@ class PacketEmbedder:
             "total_processed": len(self.processed_packets),
             "processed_packets": self.processed_packets
         }
-
 
 # 向後相容的外部調用函數
 def embed_and_send_packet(original_packet, destination_ip, destination_port, max_packet_size=1400, current_uuid=uuid.uuid4()):

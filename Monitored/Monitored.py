@@ -7,11 +7,14 @@ import time
 import signal
 import uuid
 from pathlib import Path
+from datetime import datetime  # 添加這行
+import scapy.all
 
 # 導入自定義模組
 from Filter import PacketFilter
 from SignalGen import send_signal
 from Embedding import embed_and_send_packet, PacketEmbedder
+from Recorder import Recorder
 import scapy.all
 
 
@@ -25,6 +28,7 @@ class MonitoredProcessor:
         self.processed_count = 0
         self.signal_sent = False  # 記錄是否已發送signal
         self.current_uuid = uuid.uuid4() #服務專用UUID
+        self.recorder = Recorder(save_path="./records", current_uuid = self.current_uuid)
 
         # 設定信號處理
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -180,22 +184,87 @@ class MonitoredProcessor:
                 print("   ❌ 封包格式轉換失敗")
                 return False
 
+            # 提取封包資訊用於記錄
+            src_ip = "unknown"
+            dst_ip = "unknown"
+            src_port = "unknown"
+            dst_port = "unknown"
+
+            try:
+                if hasattr(captured_packet, 'ip'):
+                    src_ip = captured_packet.ip.src
+                    dst_ip = captured_packet.ip.dst
+
+                if hasattr(captured_packet, 'tcp'):
+                    src_port = int(captured_packet.tcp.srcport)
+                    dst_port = int(captured_packet.tcp.dstport)
+            except Exception as extract_error:
+                print(f"   ⚠️  提取封包資訊時發生錯誤: {extract_error}")
+
             # 嵌入並發送到監控端
             target_ip = self.config["embed_target_ip"]
             target_port = self.config["embed_target_port"]
             max_size = self.config.get("max_packet_size", 1400)
 
-            success = embed_and_send_packet(scapy_packet, target_ip, target_port, max_size, uuid)
+            # 使用PacketEmbedder進行嵌入
+            embedded_packets = self.packet_embedder.embed_packet(scapy_packet, target_ip, target_port)
 
-            if success:
-                print(f"   ✅ 封包已嵌入並轉發至監控端 {target_ip}:{target_port}")
+            if embedded_packets:
+                # 發送嵌入式封包
+                send_success = self.packet_embedder.send_embedded_packets(embedded_packets)
+
+                if send_success:
+                    print(f"   ✅ 封包已嵌入並轉發至監控端 {target_ip}:{target_port}")
+
+                    # 記錄每個嵌入式封包
+                    for i, embedded_packet in enumerate(embedded_packets):
+                        # 建立分片資訊（如果有多個封包）
+                        fragment_info = None
+                        if len(embedded_packets) > 1:
+                            fragment_info = {
+                                "fragment_index": i,
+                                "total_fragments": len(embedded_packets),
+                                "is_last_fragment": (i == len(embedded_packets) - 1)
+                            }
+
+                        # 記錄嵌入式封包
+                        record_success = self.recorder.record_embedded_packet(
+                            embedded_packet,
+                            original_packet_info={
+                                "original_src": src_ip,
+                                "original_dst": dst_ip,
+                                "tcp_sport": src_port,
+                                "tcp_dport": dst_port,
+                                "packet_size": len(bytes(scapy_packet)) if hasattr(scapy_packet, '__len__') else 0,
+                                "protocol": captured_packet.highest_layer if hasattr(captured_packet,
+                                                                                     'highest_layer') else "unknown"
+                            },
+                            metadata={
+                                "embed_uuid": self.current_uuid,
+                                "embed_timestamp": time.time(),
+                                "target_ip": target_ip,
+                                "target_port": target_port
+                            },
+                            fragment_info=fragment_info
+                        )
+
+                        if record_success:
+                            print(f"   📝 封包記錄完成 (分片 {i + 1}/{len(embedded_packets)})")
+                        else:
+                            print(f"   ⚠️  封包記錄失敗 (分片 {i + 1}/{len(embedded_packets)})")
+
+                    return True
+                else:
+                    print(f"   ❌ 封包發送失敗")
+                    return False
             else:
-                print(f"   ❌ 封包嵌入和轉發失敗")
-
-            return success
+                print(f"   ❌ 封包嵌入失敗")
+                return False
 
         except Exception as e:
             print(f"   ❌ 處理封包嵌入時發生錯誤: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _convert_to_scapy_packet(self, pyshark_packet):
